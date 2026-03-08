@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI数字识别工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/tesseract.js@v2.1.0/dist/tesseract.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                        secondary: '#10b981',
+                        accent: '#f59e0b',
+                        dark: '#1e293b',
+                    },
+                },
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .shadow-custom {
+                box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <!-- 头部 -->
+        <header class="text-center mb-10">
+            <h1 class="text-4xl font-bold text-dark mb-2">AI数字识别工具</h1>
+            <p class="text-gray-600">上传截图，AI自动识别数字并智能处理</p>
+        </header>
+
+        <!-- 主内容区 -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- 左侧：上传和预览 -->
+            <div class="bg-white rounded-xl shadow-custom p-6">
+                <h2 class="text-xl font-semibold mb-4">上传截图</h2>
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center mb-4">
+                    <input type="file" id="imageUpload" accept=".jpg,.jpeg,.png,.webp" class="hidden">
+                    <label for="imageUpload" class="cursor-pointer">
+                        <div class="flex flex-col items-center justify-center py-8">
+                            <svg class="w-16 h-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                            </svg>
+                            <p class="text-gray-600">点击或拖拽文件到此处上传</p>
+                            <p class="text-gray-400 text-sm mt-1">支持 JPG、PNG、WebP 格式</p>
+                        </div>
+                    </label>
+                </div>
+                <div id="imagePreview" class="hidden mb-4">
+                    <img id="previewImage" src="" alt="预览图片" class="w-full h-auto rounded-lg">
+                </div>
+                <button id="processBtn" class="w-full bg-primary hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed" disabled>开始解析</button>
+            </div>
+
+            <!-- 右侧：结果和操作 -->
+            <div class="bg-white rounded-xl shadow-custom p-6">
+                <h2 class="text-xl font-semibold mb-4">解析结果</h2>
+                <div class="mb-6">
+                    <label class="block text-gray-700 font-medium mb-2">识别的文字</label>
+                    <div id="ocrResult" class="border border-gray-300 rounded-lg p-4 h-48 overflow-y-auto bg-gray-50">
+                        <p class="text-gray-400 text-center">解析结果将显示在这里</p>
+                    </div>
+                </div>
+
+                <!-- 智能解析 -->
+                <div class="mb-6">
+                    <h3 class="font-medium text-gray-700 mb-2">智能解析</h3>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button id="extractPhone" class="bg-secondary hover:bg-green-600 text-white font-medium py-2 px-4 rounded-lg transition duration-300">提取手机号</button>
+                        <button id="extractAmount" class="bg-secondary hover:bg-green-600 text-white font-medium py-2 px-4 rounded-lg transition duration-300">提取数字</button>
+                    </div>
+                </div>
+
+                <!-- 快捷处理 -->
+                <div class="mb-6">
+                    <h3 class="font-medium text-gray-700 mb-2">快捷处理</h3>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button id="calculateSum" class="bg-accent hover:bg-amber-600 text-white font-medium py-2 px-4 rounded-lg transition duration-300">求和</button>
+                        <button id="calculateAvg" class="bg-accent hover:bg-amber-600 text-white font-medium py-2 px-4 rounded-lg transition duration-300">平均值</button>
+                        <button id="calculateMin" class="bg-accent hover:bg-amber-600 text-white font-medium py-2 px-4 rounded-lg transition duration-300">最小值</button>
+                        <button id="calculateMax" class="bg-accent hover:bg-amber-600 text-white font-medium py-2 px-4 rounded-lg transition duration-300">最大值</button>
+                    </div>
+                </div>
+
+
+
+                <!-- 结果导出 -->
+                <div class="flex gap-2">
+                    <button id="copyResult" class="flex-1 bg-primary hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition duration-300">复制结果</button>
+                    <button id="exportTxt" class="flex-1 bg-gray-700 hover:bg-gray-800 text-white font-medium py-2 px-4 rounded-lg transition duration-300">导出TXT</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 解析结果弹窗 -->
+        <div id="resultModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+            <div class="bg-white rounded-xl shadow-lg p-6 max-w-md w-full">
+                <h3 class="text-xl font-semibold mb-4" id="modalTitle">解析结果</h3>
+                <div id="modalContent" class="mb-4 p-4 bg-gray-50 rounded-lg max-h-60 overflow-y-auto"></div>
+                <!-- 标准按钮组（复制、导出、关闭） -->
+                <div id="standardButtons" class="flex gap-2">
+                    <button id="modalCopyBtn" class="flex-1 bg-primary hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition duration-300">复制结果</button>
+                    <button id="modalExportBtn" class="flex-1 bg-gray-700 hover:bg-gray-800 text-white font-medium py-2 px-4 rounded-lg transition duration-300">导出TXT</button>
+                    <button id="closeModal" class="bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg transition duration-300">关闭</button>
+                </div>
+                <!-- 数字选择按钮组（全选、全不选、确认、关闭） -->
+                <div id="numberSelectionButtons" class="flex gap-2 hidden">
+                    <button id="selectAllBtn" class="flex-1 bg-primary hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition duration-300 text-sm">全选</button>
+                    <button id="selectNoneBtn" class="flex-1 bg-gray-700 hover:bg-gray-800 text-white font-medium py-2 px-4 rounded-lg transition duration-300 text-sm">全不选</button>
+                    <button id="confirmBtn" class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition duration-300">确认</button>
+                    <button id="closeModal2" class="bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg transition duration-300">关闭</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let currentImage = null;
+        let ocrText = '';
+
+        // 上传图片
+        document.getElementById('imageUpload').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                handleImage(file);
+            }
+        });
+
+        // 粘贴上传
+        document.addEventListener('paste', function(e) {
+            const items = e.clipboardData.items;
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                    const file = items[i].getAsFile();
+                    handleImage(file);
+                    break;
+                }
+            }
+        });
+
+        // 处理图片
+        function handleImage(file) {
+            currentImage = file;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const preview = document.getElementById('imagePreview');
+                const previewImage = document.getElementById('previewImage');
+                previewImage.src = e.target.result;
+                preview.classList.remove('hidden');
+                document.getElementById('processBtn').disabled = false;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // 图像预处理函数
+        function preprocessImage(image) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = image.width;
+            canvas.height = image.height;
+            
+            // 绘制图像
+            ctx.drawImage(image, 0, 0);
+            
+            // 获取图像数据
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            
+            // 轻度灰度化处理（保留更多细节）
+            for (let i = 0; i < data.length; i += 4) {
+                const gray = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+                data[i] = gray;     // 红色通道
+                data[i + 1] = gray; // 绿色通道
+                data[i + 2] = gray; // 蓝色通道
+                // alpha通道保持不变
+            }
+            
+            // 把处理后的数据放回画布
+            ctx.putImageData(imageData, 0, 0);
+            
+            // 返回处理后的图像
+            return canvas;
+        }
+
+        // 开始解析
+        document.getElementById('processBtn').addEventListener('click', function() {
+            if (!currentImage) {
+                alert('请先上传图片');
+                return;
+            }
+
+            const processBtn = document.getElementById('processBtn');
+            processBtn.disabled = true;
+            processBtn.textContent = '解析中...';
+
+            // 清空之前的识别结果
+            const ocrResult = document.getElementById('ocrResult');
+            ocrResult.innerHTML = '<p class="text-gray-400 text-center">正在解析...</p>';
+
+            // 先加载图片进行预处理
+            const img = new Image();
+            img.onload = function() {
+                // 预处理图像
+                const processedImage = preprocessImage(img);
+                
+                // 将预处理后的图像转换为Blob
+                processedImage.toBlob(function(blob) {
+                    // 主OCR识别
+            Tesseract.recognize(
+                blob,
+                'eng', // 使用英文训练集，但只识别数字
+                {
+                    logger: info => {
+                        console.log('OCR进度:', info);
+                        if (info.status === 'recognizing text') {
+                            processBtn.textContent = `解析中... ${Math.round(info.progress * 100)}%`;
+                        }
+                    },
+                    // 优化配置，只识别数字和小数点
+                    tessedit_char_whitelist: '0123456789.',
+                    tessedit_pageseg_mode: 11, // 自动页面分割
+                    preserve_interword_spaces: '1',
+                    // 提高速度的配置
+                    tessedit_do_invert: 0,
+                    tessedit_ocr_engine_mode: 1 // 使用LSTM引擎
+                }
+            ).then(({ data: { text } }) => {
+                console.log('主OCR结果:', text);
+                // 过滤结果，只保留数字和小数点
+                ocrText = text.replace(/[^0-9.]/g, ' ').replace(/\s+/g, ' ').trim();
+                
+                // 执行校验识别（第二种识别方式）
+                processBtn.textContent = '校验中...';
+                return Tesseract.recognize(
+                    blob,
+                    'eng', // 使用相同的语言训练集
+                    {
+                        // 不同的配置参数，作为第二种识别方式
+                        tessedit_char_whitelist: '0123456789.',
+                        tessedit_pageseg_mode: 7, // 单一行文本模式
+                        preserve_interword_spaces: '1',
+                        tessedit_do_invert: 1, // 反转图像
+                        tessedit_ocr_engine_mode: 1 // 使用LSTM引擎
+                    }
+                ).then(({ data: { text:校验Text } }) => {
+                    console.log('校验OCR结果:', 校验Text);
+                    // 过滤校验结果
+                    const 校验结果 = 校验Text.replace(/[^0-9.]/g, ' ').replace(/\s+/g, ' ').trim();
+                    
+                    // 比较结果
+                    if (ocrText === 校验结果) {
+                        // 无差异，校验成功
+                        if (ocrText === '') {
+                            ocrResult.innerHTML = '<p class="text-gray-400 text-center">未识别到数字，请尝试上传更清晰的图片</p>';
+                        } else {
+                            ocrResult.innerHTML = `<pre class="whitespace-pre-wrap">${ocrText}</pre><div class="mt-2 p-2 bg-green-100 text-green-800 rounded-lg text-sm">校验成功：识别结果一致</div>`;
+                        }
+                    } else {
+                        // 有差异，标注差异项
+                        if (ocrText === '') {
+                            ocrResult.innerHTML = '<p class="text-gray-400 text-center">未识别到数字，请尝试上传更清晰的图片</p>';
+                        } else {
+                            ocrResult.innerHTML = `<pre class="whitespace-pre-wrap">${ocrText}</pre><div class="mt-2 p-2 bg-yellow-100 text-yellow-800 rounded-lg text-sm">校验差异：主识别结果与校验结果不一致</div><div class="mt-1 p-2 bg-gray-100 text-gray-800 rounded-lg text-sm">校验结果：${校验结果}</div>`;
+                        }
+                    }
+                    
+                    processBtn.disabled = false;
+                    processBtn.textContent = '开始解析';
+                });
+            }).catch(error => {
+                console.error('OCR失败:', error);
+                ocrResult.innerHTML = '<p class="text-gray-400 text-center">解析失败，请重试</p>';
+                processBtn.disabled = false;
+                processBtn.textContent = '开始解析';
+                alert('解析失败，请重试。错误信息：' + error.message);
+            });
+                });
+            };
+            
+            // 读取图片
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(currentImage);
+        });
+
+        // 全局变量
+        let currentModalContent = '';
+
+        // 智能解析功能
+        function showModal(title, content) {
+            currentModalContent = content;
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalContent').innerHTML = `<pre class="whitespace-pre-wrap">${content}</pre>`;
+            document.getElementById('resultModal').classList.remove('hidden');
+        }
+
+        // 提取手机号
+        document.getElementById('extractPhone').addEventListener('click', function() {
+            if (!ocrText) {
+                alert('请先上传图片并解析');
+                return;
+            }
+            const phoneRegex = /1[3-9]\d{9}/g;
+            const phones = ocrText.match(phoneRegex) || [];
+            showModal('提取的手机号', phones.join('\n'));
+        });
+
+
+
+        // 提取数字
+        document.getElementById('extractAmount').addEventListener('click', function() {
+            if (!ocrText) {
+                alert('请先上传图片并解析');
+                return;
+            }
+            const numberRegex = /\d+(\.\d+)?/g;
+            const numbers = ocrText.match(numberRegex) || [];
+            showModal('提取的数字', numbers.join('\n'));
+        });
+
+        // 显示数字选择模态框
+        function showNumberSelectionModal(title, callback) {
+            if (!ocrText) {
+                alert('请先上传图片并解析');
+                return;
+            }
+            
+            const numberRegex = /\d+(\.\d+)?/g;
+            const numbers = ocrText.match(numberRegex) || [];
+            
+            if (numbers.length === 0) {
+                showModal(title, '未识别到数字');
+                return;
+            }
+            
+            // 生成数字选择界面
+            let html = '<div class="space-y-2">';
+            numbers.forEach((number, index) => {
+                html += `
+                    <div class="flex items-center">
+                        <input type="checkbox" id="number-${index}" class="mr-2" checked>
+                        <label for="number-${index}">${number}</label>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            // 数字选择界面不需要在内容区添加按钮，因为按钮已经在模态框底部固定
+            
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalContent').innerHTML = html;
+            document.getElementById('resultModal').classList.remove('hidden');
+            
+            // 显示数字选择按钮组，隐藏标准按钮组
+            document.getElementById('standardButtons').classList.add('hidden');
+            document.getElementById('numberSelectionButtons').classList.remove('hidden');
+            
+            // 添加事件监听器
+            document.getElementById('selectAllBtn').addEventListener('click', function() {
+                document.querySelectorAll('[id^="number-"]').forEach(checkbox => {
+                    checkbox.checked = true;
+                });
+            });
+            
+            document.getElementById('selectNoneBtn').addEventListener('click', function() {
+                document.querySelectorAll('[id^="number-"]').forEach(checkbox => {
+                    checkbox.checked = false;
+                });
+            });
+            
+            // 确保每次打开模态框时都重新绑定事件监听器
+            // 先移除可能存在的旧事件监听器
+            const confirmBtn = document.getElementById('confirmBtn');
+            const newConfirmBtn = confirmBtn.cloneNode(true);
+            confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+            
+            // 为新的确认按钮添加事件监听器
+            newConfirmBtn.addEventListener('click', function() {
+                const selectedNumbers = [];
+                // 使用更精确的选择器，确保只选择当前模态框中的复选框
+                const checkboxes = document.querySelectorAll('#resultModal [id^="number-"]');
+                console.log('找到的复选框数量:', checkboxes.length);
+                
+                checkboxes.forEach((checkbox, index) => {
+                    if (checkbox.checked) {
+                        selectedNumbers.push(parseFloat(numbers[index]));
+                        console.log('选中的数字:', numbers[index]);
+                    }
+                });
+                
+                console.log('选中的数字数组:', selectedNumbers);
+                
+                if (selectedNumbers.length === 0) {
+                    alert('请至少选择一个数字');
+                    return;
+                }
+                
+                document.getElementById('resultModal').classList.add('hidden');
+                // 恢复标准按钮组的显示，隐藏数字选择按钮组
+                document.getElementById('standardButtons').classList.remove('hidden');
+                document.getElementById('numberSelectionButtons').classList.add('hidden');
+                callback(selectedNumbers);
+            });
+            
+            // 为closeModal2按钮添加事件监听器
+            document.getElementById('closeModal2').addEventListener('click', function() {
+                document.getElementById('resultModal').classList.add('hidden');
+                // 恢复标准按钮组的显示，隐藏数字选择按钮组
+                document.getElementById('standardButtons').classList.remove('hidden');
+                document.getElementById('numberSelectionButtons').classList.add('hidden');
+            });
+        }
+
+        // 计算求和
+        document.getElementById('calculateSum').addEventListener('click', function() {
+            showNumberSelectionModal('选择要求和的数字', function(selectedNumbers) {
+                const sum = selectedNumbers.reduce((acc, curr) => acc + curr, 0);
+                showModal('求和结果', sum.toFixed(2));
+            });
+        });
+
+        // 计算平均值
+        document.getElementById('calculateAvg').addEventListener('click', function() {
+            showNumberSelectionModal('选择要计算平均值的数字', function(selectedNumbers) {
+                const sum = selectedNumbers.reduce((acc, curr) => acc + curr, 0);
+                const avg = sum / selectedNumbers.length;
+                showModal('平均值结果', avg.toFixed(2));
+            });
+        });
+
+        // 计算最小值
+        document.getElementById('calculateMin').addEventListener('click', function() {
+            showNumberSelectionModal('选择要计算最小值的数字', function(selectedNumbers) {
+                const min = Math.min(...selectedNumbers);
+                showModal('最小值结果', min.toFixed(2));
+            });
+        });
+
+        // 计算最大值
+        document.getElementById('calculateMax').addEventListener('click', function() {
+            showNumberSelectionModal('选择要计算最大值的数字', function(selectedNumbers) {
+                const max = Math.max(...selectedNumbers);
+                showModal('最大值结果', max.toFixed(2));
+            });
+        });
+
+
+
+
+
+        // 复制结果
+        document.getElementById('copyResult').addEventListener('click', function() {
+            if (!ocrText) {
+                alert('请先上传图片并解析');
+                return;
+            }
+            navigator.clipboard.writeText(ocrText).then(function() {
+                alert('结果已复制到剪贴板');
+            }).catch(function() {
+                alert('复制失败，请手动复制');
+            });
+        });
+
+        // 导出TXT
+        document.getElementById('exportTxt').addEventListener('click', function() {
+            if (!ocrText) {
+                alert('请先上传图片并解析');
+                return;
+            }
+            const blob = new Blob([ocrText], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'ocr_result.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+
+        // 关闭弹窗
+        document.getElementById('closeModal').addEventListener('click', function() {
+            document.getElementById('resultModal').classList.add('hidden');
+        });
+
+        // 点击弹窗外部关闭
+        document.getElementById('resultModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                this.classList.add('hidden');
+            }
+        });
+
+        // 为模态框按钮添加事件监听器
+        document.getElementById('modalCopyBtn').addEventListener('click', function() {
+            if (currentModalContent) {
+                navigator.clipboard.writeText(currentModalContent).then(function() {
+                    alert('结果已复制到剪贴板');
+                }).catch(function() {
+                    alert('复制失败，请手动复制');
+                });
+            }
+        });
+
+        document.getElementById('modalExportBtn').addEventListener('click', function() {
+            if (currentModalContent) {
+                const blob = new Blob([currentModalContent], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'result.txt';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+        });
+    </script>
+</body>
+</html>
